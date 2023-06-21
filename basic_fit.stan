@@ -3,38 +3,38 @@ data{
     vector[N] distance;             // Distances
     vector[N] meal_preparation_time; // Meal preparation times
     vector[N] delivery_times;       // Delivery times
-    int traffic_level[N];           // Traffic levels
+    array[N] int traffic_level;           // Traffic levels
 }
 
 parameters{
-    real<lower=-0.003, upper=0.003> distance_coeff_raw;
-    vector<lower=0, upper=0.03>[4] traffic_level_coeff;
-    real <lower=1, upper=1.4>meal_prep_coeff;
-    real<lower=0, upper=2> sigma;
-    vector<lower=0, upper=40>[N] travel_time;
+    real<lower=-0.3, upper=0.3> distance_coeff_raw;
+    vector<lower=0.01, upper=0.1>[4] traffic_level_coeff;
+    real<lower=0.01, upper=0.08> meal_prep_coeff;
+    real<lower=0, upper=1.5> sigma;
+    // vector<lower=0, upper=40>[N] travel_time;
 }
 
 transformed parameters {
-    real<lower=0> distance_coeff;
-    vector[N] mu;
-    for (i in 1:N){
-        mu[i] = travel_time[i] + meal_prep_coeff * meal_preparation_time[i];
+    real<lower=0, upper=0.3> distance_coeff;
+    distance_coeff = fabs(distance_coeff_raw);
+    vector<lower=0, upper=90>[N] mu;
+    for(i in 1:N){
+        mu[i] = exp(distance_coeff * distance[i] + traffic_level_coeff[traffic_level[i]] + meal_prep_coeff * meal_preparation_time[i]);
     }
 
-    distance_coeff = fabs(distance_coeff_raw);
 }
 
 model{
-    distance_coeff_raw ~ normal(0, 0.0006);
-    meal_prep_coeff ~ normal(1.5, 0.1);
+    distance_coeff_raw ~ normal(0.1,0.01);
+    meal_prep_coeff ~ normal(0.05,0.002);
     sigma ~ exponential(1);
     delivery_times ~ gamma(pow(mu, 2) / pow(sigma, 2), mu / pow(sigma, 2));
-    traffic_level_coeff[1] ~ normal(0.1, 0.01);
-    traffic_level_coeff[2] ~ normal(0.15, 0.01);
-    traffic_level_coeff[3] ~ normal(0.2, 0.01);
-    traffic_level_coeff[4] ~ normal(0.25, 0.01);
+    traffic_level_coeff[1] ~ normal(0.08, 0.01);
+    traffic_level_coeff[2] ~ normal(0.05, 0.01);
+    traffic_level_coeff[3] ~ normal(0.05, 0.01);
+    traffic_level_coeff[4] ~ normal(0.08, 0.01);
 
-    travel_time ~ exponential(distance_coeff * distance + traffic_level_coeff[traffic_level]);
+    // travel_time ~ exponential(distance_coeff * distance + traffic_level_coeff[traffic_level]);
 }
 
 generated quantities {
@@ -42,7 +42,7 @@ generated quantities {
     vector[N] exp_argument;
     for (i in 1:N){
         delivery_time[i] = gamma_rng(pow(mu[i], 2) / pow(sigma, 2), mu[i] / pow(sigma, 2));
-        exp_argument[i] = distance_coeff * distance[i] + traffic_level_coeff[traffic_level[i]];
+        exp_argument[i] = distance_coeff * distance[i] + traffic_level_coeff[traffic_level[i]] + meal_prep_coeff * meal_preparation_time[i];
     }
 }
 
